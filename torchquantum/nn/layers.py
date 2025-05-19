@@ -113,7 +113,7 @@ class QuantumLayer(nn.Module):
         # Initialize variational parameters.
         param_count: int = self.var_form.get_parameter_count()
         self._theta = nn.Parameter(torch.rand(param_count))
-        beta_initialization(self._theta)    
+        beta_initialization(self._theta)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         r"""Forward pass for the quantum layer.

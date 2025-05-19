@@ -206,7 +206,7 @@ class PauliFeatureMapLayer(qu.Ansatz):
             for indices in entangler_list:
                 pb: PauliBlock = PauliBlock(indices, pauli, self.alpha)
                 self.blocks[f"pauli_{pauli}_{indices}"] = pb
-                param_ids   = [j for j, ch in enumerate(pauli) if ch != "I"]
+                param_ids = [j for j, ch in enumerate(pauli) if ch != "I"]
                 params_this = [x[indices[j]] for j in param_ids]
                 kernel.apply_call(pb.kernel, qvec, *params_this)
         return kernel

@@ -13,15 +13,15 @@ from torchquantum.models import QNN, HybridQNN
 from src.classic_models import ParamMatchedFCN
 from src.train_functions import train_step, val_step, test_step
 from src.utils import Accuracy, get_unique_filename, set_seed, count_parameters
-from src.data import load_wine_dataset
+from src.data import load_wine_dataset, load_iris_dataset
 
 
 # Global configuration dictionaries for data, training, and model parameters.
-IN_FEATURES = 13
+IN_FEATURES = 4
 OUT_FEATURES = 3
 
 TRAINING_PARAMS: Dict[str, Any] = {
-    "batch_size": 32,
+    "batch_size": 8,
     "num_workers": 3,
     "learning_rate": 0.1,
     "epochs": 20,
@@ -31,11 +31,11 @@ TRAINING_PARAMS: Dict[str, Any] = {
 QNN_PARAMS: Dict[str, Any] = {
     "in_features": IN_FEATURES,
     "out_features": OUT_FEATURES,
-    "num_layers": 10,
-    "shots": 496,
+    "num_layers": 3,
+    "shots": 1028,
     "feature_map": "z",
     "var_form": "efficientsu2",
-    "reupload": True,
+    "reupload": False,
 }
 
 FCN_PARAMS: Dict[str, int] = {
@@ -46,7 +46,7 @@ FCN_PARAMS: Dict[str, int] = {
 HYBRID_PARAMS: Dict[str, Any] = {
     "in_features": IN_FEATURES,
     "out_features": OUT_FEATURES,
-    "num_layers": 3,
+    "num_layers": 1,
     "shots": 1028,
     "feature_map": "z",
     "var_form": "efficientsu2",
@@ -72,7 +72,7 @@ def main() -> None:
     else:
         cudaq.set_target("qpp-cpu")
 
-    train_loader, val_loader, test_loader = load_wine_dataset(
+    train_loader, val_loader, test_loader = load_iris_dataset(
         batch_size=TRAINING_PARAMS["batch_size"],
         num_workers=TRAINING_PARAMS["num_workers"],
         seed=TRAINING_PARAMS["seed"],
@@ -110,7 +110,8 @@ def main() -> None:
         var_form=HYBRID_PARAMS["var_form"],
         reupload=HYBRID_PARAMS["reupload"],
     )
-    print(f"Hybrid model parameter count:", count_parameters(model_hybrid))
+    d: int = count_parameters(model_hybrid)
+    print(f"Hybrid model parameter count:", d)
 
     model_qnn.to(device)
     model_fcn.to(device)
@@ -156,10 +157,10 @@ def main() -> None:
     # Initial evaluation on the test set.
     test_step(model_qnn, test_loader, criterion, acc_test_qnn, device)
     test_step(model_fcn, test_loader, criterion, acc_test_fcn, device)
-    # test_step(model_hybrid, test_loader, criterion, acc_test_hybrid, device)
+    test_step(model_hybrid, test_loader, criterion, acc_test_hybrid, device)
     print("Initial test evaluation logged to TensorBoard.")
 
-    # Training loop.
+    # # Training loop.
     for epoch in tqdm(range(1, TRAINING_PARAMS["epochs"] + 1)):
         acc_train_qnn.reset()
         train_step(
@@ -193,27 +194,27 @@ def main() -> None:
             model_fcn, val_loader, criterion, acc_val_fcn, writer_fcn, epoch, device
         )
 
-        # acc_train_hybrid.reset()
-        # train_step(
-        #     model_hybrid,
-        #     train_loader,
-        #     criterion,
-        #     optimizer_hybrid,
-        #     acc_train_hybrid,
-        #     writer_hybrid,
-        #     epoch,
-        #     device,
-        # )
-        # acc_val_hybrid.reset()
-        # val_step(
-        #     model_hybrid,
-        #     val_loader,
-        #     criterion,
-        #     acc_val_hybrid,
-        #     writer_hybrid,
-        #     epoch,
-        #     device,
-        # )
+    #     acc_train_hybrid.reset()
+    #     train_step(
+    #         model_hybrid,
+    #         train_loader,
+    #         criterion,
+    #         optimizer_hybrid,
+    #         acc_train_hybrid,
+    #         writer_hybrid,
+    #         epoch,
+    #         device,
+    #     )
+    #     acc_val_hybrid.reset()
+    #     val_step(
+    #         model_hybrid,
+    #         val_loader,
+    #         criterion,
+    #         acc_val_hybrid,
+    #         writer_hybrid,
+    #         epoch,
+    #         device,
+    #     )
 
     # Final test evaluation.
     acc_test_qnn.reset()

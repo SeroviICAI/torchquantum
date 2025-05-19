@@ -58,7 +58,6 @@ class QuantumFunction(Function):
         self.backend = backend
         self.shots = shots
         self.reupload = reupload
-        self.pooling = qu.PoolingBlock(in_features, out_features, "cx") if in_features > out_features else None
         self._observables: List[cudaq.SpinOperator] = [
             spin.z(i) for i in range(out_features)
         ]
@@ -97,10 +96,34 @@ class QuantumFunction(Function):
                 count: int = layer.get_parameter_count()
                 kernel.apply_call(layer.kernel, qvec, *thetas[ptr : ptr + count])
                 ptr += count
-        
-        if self.pooling:
-            kernel.apply_call(self.pooling.kernel, qvec)
         return kernel
+
+    # def run(self, theta_vals: List[nn.Parameter], x: torch.Tensor) -> torch.Tensor:
+    #     r"""Execute the quantum circuit for a batch of inputs.
+
+    #     For each input sample, the circuit is executed and the expectation value of the Z
+    #     observable on each qubit is measured.
+
+    #     Args:
+    #         theta_vals (List[nn.Parameter]): List of circuit parameters.
+    #         x (torch.Tensor): Input tensor of shape (batch_size, in_features).
+
+    #     Returns:
+    #         torch.Tensor: Tensor of expectation values with shape (batch_size, out_features).
+    #     """
+    #     batch_size: int = x.shape[0]
+    #     results: List[List[float]] = []
+    #     theta_list: List[float] = theta_vals.detach().tolist()
+    #     for i in range(batch_size):
+    #         feature_list: List[float] = x[i].detach().tolist()
+    #         params: List[float] = feature_list + theta_list
+    #         observe_results = cudaq.observe(
+    #             self.kernel, self._observables, *params, shots_count=self.shots
+    #         )
+    #         yi = [result.expectation() for result in observe_results]
+    #         results.append(yi)
+    #     device = theta_vals.device
+    #     return torch.tensor(results, device=device, dtype=torch.float32)
 
     def run(self, theta_vals: List[nn.Parameter], x: torch.Tensor) -> torch.Tensor:
         r"""Execute the quantum circuit for a batch of inputs.
@@ -113,21 +136,32 @@ class QuantumFunction(Function):
             x (torch.Tensor): Input tensor of shape (batch_size, in_features).
 
         Returns:
-            torch.Tensor: Tensor of expectation values with shape (batch_size, in_features).
+            torch.Tensor: Tensor of expectation values with shape (batch_size, out_features).
         """
         batch_size: int = x.shape[0]
-        results: List[List[float]] = []
+        num_classes: int = self.out_features
+        device = theta_vals.device
+        results: torch.Tensor = torch.zeros(
+            batch_size, num_classes, dtype=torch.float32, device=device
+        )
         theta_list: List[float] = theta_vals.detach().tolist()
         for i in range(batch_size):
             feature_list: List[float] = x[i].detach().tolist()
             params: List[float] = feature_list + theta_list
-            observe_results = cudaq.observe(
-                self.kernel, self._observables, *params, shots_count=self.shots
+            sample_results = cudaq.sample(self.kernel, *params, shots_count=self.shots)
+            class_ids = torch.tensor(
+                list(
+                    map(
+                        lambda bs: int(bs, 2) % num_classes,
+                        sample_results.get_sequential_data(),
+                    )
+                ),
+                dtype=torch.long,
+                device=device,
             )
-            yi = [result.expectation() for result in observe_results]
-            results.append(yi)
-        device = theta_vals.device
-        return torch.tensor(results, device=device, dtype=torch.float32)
+            counts = torch.bincount(class_ids, minlength=num_classes)
+            results[i] = counts / counts.sum()
+        return results
 
     @staticmethod
     def setup_context(

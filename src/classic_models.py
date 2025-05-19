@@ -13,7 +13,7 @@ class ParamMatchedFCN(nn.Module):
 
     Ensures that the total number of weight parameters is ≥ *d* and as close to *d* as possible.
     If *d* exactly equals in_features · out_features, uses a single Linear layer.
-    Otherwise, adds one hidden tanh layer of size
+    Otherwise, adds one hidden relu layer of size
         ceil(d / (in_features + out_features))
     so that
         in_features*hidden + hidden*out_features ≥ d.
